@@ -6,6 +6,7 @@ import {
     openTestPage,
     readContentScriptMaxTime,
     setGestureAction,
+    stubNonMacPlatform,
     test
 } from './fixtures.js';
 
@@ -126,6 +127,7 @@ test('the maximum time between clicks gets saved in one write before its note sh
 test('a change which cannot be saved shows the failure note and keeps showing what is saved', async ({ context, serviceWorker, extensionId }) => {
     await setGestureAction(serviceWorker, 'ALT_DOUBLE_RIGHT_CLICK_ACTION', 'duplicateTab');
     const optionsPage = await context.newPage();
+    await optionsPage.addInitScript(stubNonMacPlatform);
     await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
     const timeDropdown = optionsPage.getByRole('combobox', { name: 'Maximum time between clicks' });
     const defaultRadio = optionsPage.getByRole('radio', { name: /Default/ });
@@ -198,6 +200,7 @@ const GESTURE_ROWS = [
 
 test('the gestures start with the double right click closing the tab and nothing set for the keys', async ({ context, extensionId }) => {
     const optionsPage = await context.newPage();
+    await optionsPage.addInitScript(stubNonMacPlatform);
     await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
 
     for (const [name, value] of GESTURE_ROWS) {
@@ -249,6 +252,7 @@ test('the gesture dropdowns are equally wide, level with their labels, and keep 
 
     for (const path of ['options.html', 'options.html?popup']) {
         const page = await context.newPage();
+        await page.addInitScript(stubNonMacPlatform);
         await page.goto(`chrome-extension://${extensionId}/${path}`);
         await expect(page.getByRole('combobox', { name: 'Shift + Double right click' })).toHaveValue('sameAsDoubleRightClick');
         const gestures = await readGestures(page);
@@ -276,6 +280,7 @@ test('the gesture dropdowns are equally wide, level with their labels, and keep 
 
 test('choosing what a gesture does saves it and shows the note', async ({ context, serviceWorker, extensionId }) => {
     const optionsPage = await context.newPage();
+    await optionsPage.addInitScript(stubNonMacPlatform);
     await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
     const altAction = optionsPage.getByRole('combobox', { name: 'Alt + Double right click' });
 
@@ -335,6 +340,7 @@ test('arrow keys move through the actions without asking for a permission on the
 
 test('"Reset" shows once a gesture differs from its default, and puts the gestures back to their defaults', async ({ context, serviceWorker, extensionId }) => {
     const optionsPage = await context.newPage();
+    await optionsPage.addInitScript(stubNonMacPlatform);
     await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
     const reset = optionsPage.getByRole('button', { name: 'Reset', exact: true });
     const altAction = optionsPage.getByRole('combobox', { name: 'Alt + Double right click' });
@@ -390,6 +396,7 @@ for (const pathname of ['/options.html', '/options.html?popup']) {
 test('outside macOS, a Cmd setting synced from a Mac neither shows "Reset" nor gets reset', async ({ context, serviceWorker, extensionId }) => {
     await setGestureAction(serviceWorker, 'META_DOUBLE_RIGHT_CLICK_ACTION', 'nothing');
     const optionsPage = await context.newPage();
+    await optionsPage.addInitScript(stubNonMacPlatform);
     await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
     const reset = optionsPage.getByRole('button', { name: 'Reset', exact: true });
     const ctrlAction = optionsPage.getByRole('combobox', { name: 'Ctrl + Double right click' });

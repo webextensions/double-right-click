@@ -186,6 +186,15 @@ const setGestureAction = async function (serviceWorker, setting, action) {
     }, { setting, action });
 };
 
+// On macOS the options page calls Alt "Option" and shows the Cmd row, and the Cmd key counts. The tests which expect
+// another system pass this to addInitScript() of the page, or to serviceWorker.evaluate() (a restart of the service
+// worker drops it), so that they hold on a Mac as well.
+const stubNonMacPlatform = function () {
+    chrome.runtime.getPlatformInfo = async function () {
+        return { os: 'linux', arch: 'x86-64', nacl_arch: 'x86-64' };
+    };
+};
+
 const restoredSessionIds = async function (serviceWorker) {
     return await serviceWorker.evaluate(() => globalThis.restoredSessionIds);
 };
@@ -354,6 +363,7 @@ export {
     spyOnTabsReload,
     startLatePageServer,
     stopServiceWorker,
+    stubNonMacPlatform,
     stubReopenClosedTab,
     tabsReloadCalls,
     test

@@ -2,6 +2,7 @@ import {
     chooseOption,
     expect,
     setGestureAction,
+    stubNonMacPlatform,
     test
 } from './fixtures.js';
 
@@ -93,7 +94,7 @@ test('on macOS, the popup fits the height of a popup, and its width with the not
 });
 
 test('a change in the popup gets saved', async ({ context, serviceWorker }) => {
-    const popup = await openPopup({ context, serviceWorker });
+    const popup = await openPopup({ context, serviceWorker }, { initScript: stubNonMacPlatform });
 
     await chooseOption(popup.getByRole('combobox', { name: 'Alt + Double right click' }), 'Duplicate tab');
     await expect(popup.getByText('Saved')).toBeVisible();

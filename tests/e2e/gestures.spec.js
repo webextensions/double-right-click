@@ -7,6 +7,7 @@ import {
     openTestPage,
     setGestureAction,
     spyOnTabsReload,
+    stubNonMacPlatform,
     tabsReloadCalls,
     test
 } from './fixtures.js';
@@ -214,6 +215,7 @@ test('double right click with two keys held does nothing, whatever is set for th
 
 test('outside macOS, the Cmd key does not count', async ({ context, serviceWorker }) => {
     await setGestureAction(serviceWorker, 'META_DOUBLE_RIGHT_CLICK_ACTION', 'nothing');
+    await serviceWorker.evaluate(stubNonMacPlatform);
     const page = await openTestPage({ context, serviceWorker }, `${CANCEL_CONTEXT_MENU_PATH}meta-outside-mac`);
     const closed = page.waitForEvent('close');
 

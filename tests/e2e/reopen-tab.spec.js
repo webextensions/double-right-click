@@ -7,6 +7,7 @@ import {
     openTestPage,
     restoredSessionIds,
     setGestureAction,
+    stubNonMacPlatform,
     stubReopenClosedTab,
     test
 } from './fixtures.js';
@@ -179,7 +180,9 @@ test('when the browser does not ask for the permission, the choice stays and the
 test('outside macOS, the hidden Cmd row neither asks for the permission nor keeps it', async ({ context, serviceWorker, extensionId }) => {
     // As when the setting got synced from a Mac
     await setGestureAction(serviceWorker, 'META_DOUBLE_RIGHT_CLICK_ACTION', 'reopenClosedTab');
-    const optionsPage = await openOptionsPage({ context, extensionId });
+    const optionsPage = await context.newPage();
+    await optionsPage.addInitScript(stubNonMacPlatform);
+    await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
     await expect(optionsPage.getByRole('combobox', { name: 'Shift + Double right click' })).toHaveValue('sameAsDoubleRightClick');
 
     await expect(optionsPage.getByText('needs access to the recently closed tabs')).toBeHidden();
