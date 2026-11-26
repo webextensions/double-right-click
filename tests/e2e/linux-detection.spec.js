@@ -6,7 +6,7 @@ import {
     test
 } from './fixtures.js';
 
-test.skip(process.platform !== 'linux', 'Only on Linux does the content script count "mousedown" as well');
+test.skip(process.platform !== 'linux', 'navigator.platform tells Linux only on Linux');
 
 test.describe('with a user agent overridden to another platform', () => {
     test.use({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' });

@@ -9,11 +9,11 @@ import {
     test
 } from './fixtures.js';
 
-// In Chromium on Wayland, the open context menu swallows a second right click on the same spot. The page only receives
-// a "mousemove" without buttons once the menu is closed, which the content script treats as the second right click.
-// Playwright never opens the native context menu, so these tests replay that event sequence instead. They send it as
-// browser-level input, since the content script ignores events which a page creates itself.
-test.skip(process.platform !== 'linux', 'The content script only watches for the context menu closing on Linux');
+// In Chromium on Wayland and on macOS, the open context menu swallows a second right click on the same spot. The page
+// only receives a "mousemove" without buttons once the menu is closed, which the content script treats as the second
+// right click. Playwright never opens the native context menu, so these tests replay that event sequence instead. They
+// send it as browser-level input, since the content script ignores events which a page creates itself.
+test.skip(!['linux', 'darwin'].includes(process.platform), 'The content script only watches for the context menu closing on Linux and macOS');
 
 const RIGHT_CLICK_POSITION = { x: 300, y: 200 };
 
@@ -137,7 +137,8 @@ test('context menu closed quickly inside a frame which a script wrote a while af
 test('context menu closed after more than the default 500 ms keeps the tab open', async ({ context, serviceWorker }) => {
     const page = await openTestPage({ context, serviceWorker }, '/menu-closed-slowly');
 
-    await rightClickThenCloseContextMenu(page, { closedAfter: 800 });
+    // Also later than the time which macOS takes to fade the menu out, which counts there as well
+    await rightClickThenCloseContextMenu(page, { closedAfter: 1000 });
     await page.waitForTimeout(600);
 
     expect(page.isClosed()).toBe(false);
@@ -188,3 +189,67 @@ for (const [key, setting] of [
         expect(page.isClosed()).toBe(false);
     });
 }
+
+test.describe('on macOS', () => {
+    test.skip(process.platform !== 'darwin', 'The content script tells macOS by navigator.platform');
+
+    test('context menu closed within the time macOS takes to fade it out closes the tab', async ({ context, serviceWorker }) => {
+        const page = await openTestPage({ context, serviceWorker }, '/menu-faded-out');
+        const closed = page.waitForEvent('close');
+
+        // Later than the default 500 ms, by less than the fade-out
+        await rightClickThenCloseContextMenu(page, { closedAfter: 700 });
+
+        await closed;
+        expect(page.isClosed()).toBe(true);
+    });
+
+    test('the right press which completes the gesture gets no context menu, the first one does', async ({ context, serviceWorker }) => {
+        // So that the tab stays to tell
+        await setGestureAction(serviceWorker, 'DOUBLE_RIGHT_CLICK_ACTION', 'nothing');
+        const page = await openTestPage({ context, serviceWorker }, '/second-press-without-menu');
+        await page.evaluate(() => {
+            window.contextMenusCancelled = [];
+            window.addEventListener('contextmenu', (e) => window.contextMenusCancelled.push(e.defaultPrevented));
+        });
+
+        // Both presses reach the page, as a second right click which misses the menu of the first one does
+        await page.mouse.move(RIGHT_CLICK_POSITION.x, RIGHT_CLICK_POSITION.y);
+        await page.mouse.down({ button: 'right' });
+        await page.waitForTimeout(150);
+        await page.mouse.down({ button: 'right' });
+        await page.mouse.up({ button: 'right' });
+
+        await expect.poll(() => page.evaluate(() => window.contextMenusCancelled)).toEqual([false, true]);
+    });
+});
+
+test.describe('with the user agent of macOS on Linux', () => {
+    test.skip(process.platform !== 'linux', 'A user agent which claims macOS on another system');
+    test.use({ userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' });
+
+    test('a context menu closed later than the default 500 ms keeps the tab open, as macOS is not detected', async ({ context, serviceWorker }) => {
+        const page = await openTestPage({ context, serviceWorker }, '/menu-closed-mac-user-agent');
+
+        await rightClickThenCloseContextMenu(page, { closedAfter: 700 });
+        await page.waitForTimeout(600);
+
+        expect(page.isClosed()).toBe(false);
+    });
+});
+
+test.describe('with a user agent overridden to another platform', () => {
+    test.skip(process.platform !== 'darwin', 'navigator.platform tells macOS only on a Mac');
+    test.use({ userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36' });
+
+    test('macOS is still detected, so a context menu closed by a second right click closes the tab', async ({ context, serviceWorker }) => {
+        const page = await openTestPage({ context, serviceWorker }, '/menu-closed-overridden-user-agent');
+        expect(await page.evaluate(() => navigator.userAgent)).toContain('Windows');
+        const closed = page.waitForEvent('close');
+
+        await rightClickThenCloseContextMenu(page, { closedAfter: 200 });
+
+        await closed;
+        expect(page.isClosed()).toBe(true);
+    });
+});

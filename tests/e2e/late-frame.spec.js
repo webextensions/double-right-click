@@ -15,9 +15,9 @@ const POSITION = { x: 300, y: 200 };
 
 test.describe('a frame whose own page never arrives', () => {
     // The placeholder cannot cancel the context menu, so a real browser opens it and swallows the release of the first
-    // right click. Playwright never opens it, so these tests leave the releases out, and Linux is where the content
-    // script counts the presses.
-    test.skip(process.platform !== 'linux', 'Only on Linux does the content script count "mousedown" as well');
+    // right click. Playwright never opens it, so these tests leave the releases out, and Linux and macOS are where the
+    // content script counts the presses.
+    test.skip(!['linux', 'darwin'].includes(process.platform), 'Only on Linux and macOS does the content script count "mousedown" as well');
 
     const openPageWithLateFrame = async function ({ context, serviceWorker }, pageName) {
         const page = await openTestPage({ context, serviceWorker }, `${LATE_FRAME_PATH}${pageName}`, { waitUntil: 'commit' });

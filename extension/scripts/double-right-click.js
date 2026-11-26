@@ -151,15 +151,20 @@ if (window.DRCattachListeners) {
     // Also true on ChromeOS ("CrOS") and Android ("Linux; Android"). The user agent can be overridden, so
     // navigator.platform is checked as well.
     var isLinux = /Linux|CrOS/.test(navigator.userAgent) || /Linux/i.test(navigator.platform);
+    // From navigator.platform ("MacIntel", also on Apple silicon) alone: another system's user agent can claim macOS,
+    // and what follows for macOS would not fit there
+    var isMac = /^Mac/i.test(navigator.platform);
     var isFirefox = !!chrome.runtime && chrome.runtime.getURL('').startsWith('moz-extension://');
     var isChromium = /Chrome/.test(navigator.userAgent) && /Google Inc/.test(navigator.vendor);
 
-    // Only used on Linux: whether the "mousedown" of the latest right click was counted, whether Shift was
+    // Only used on Linux and macOS: whether the "mousedown" of the latest right click was counted, whether Shift was
     // held during it, the "contextmenu" event received since then, and when the page was done with that event
     var rightPressCounted = false,
         rightPressWithShift = false,
         lastContextMenuEvent = null,
-        contextMenuHandledAt = null;
+        contextMenuHandledAt = null,
+        // Only used on macOS: whether the latest right press completed the gesture, so that its menu does not open
+        cancelContextMenuOfPress = false;
 
     // How long the browser takes to show its context menu once the page is done with "contextmenu" (12 to 25 ms seen
     // in Firefox), in milliseconds
@@ -198,7 +203,12 @@ if (window.DRCattachListeners) {
     //       * Firefox for Linux behaves the same way (since Firefox 102, still the case in Firefox 160): the context menu swallows
     //         the "mouseup" of the first right click and the "mousedown" of the second one
     //         (https://github.com/webextensions/double-right-click/issues/12)
-    if (isLinux) {
+    //       * On macOS (Chrome and Firefox), the context menu opens on the press and swallows its release. A second right
+    //         click a few pixels above, below or to the left of the first one misses the menu and reaches the page as
+    //         another press, whose own menu then gets cancelled; one on the menu gets handled further below. One a pixel
+    //         towards where the menu opened (to the right, or to the left near the right edge of the screen) lands on its
+    //         first entry, which then does what that entry does.
+    if (isLinux || isMac) {
         listen(document, 'mousedown', function (e) {
             if (e.button === 2) {
                 rightPressCounted = true;
@@ -207,9 +217,16 @@ if (window.DRCattachListeners) {
                 contextMenuHandledAt = null;
             }
             receiveRightClick(e);
+            // On macOS, the menu of a press which completed the gesture would keep Chrome from closing the tab until that
+            // menu is closed, and stay showing in Firefox once the tab is closed
+            cancelContextMenuOfPress = isMac && e.button === 2 && gestureReported;
         });
         // "defaultPrevented" is read on "mouseup", by when the page has had its chance to cancel the event
         listen(window, 'contextmenu', function (e) {
+            if (cancelContextMenuOfPress) {
+                cancelContextMenuOfPress = false;
+                e.preventDefault();
+            }
             lastContextMenuEvent = e;
             contextMenuHandledAt = null;
             // For a page which stops the event before it bubbles up to the window. A busy page delays this as well.
@@ -237,9 +254,15 @@ if (window.DRCattachListeners) {
     // while a right press waits for its second click, and it only exists on pages served over https.
     // The pointer positions are compared in screen coordinates: inside a frame of the same site, Chromium gives
     // "pointerrawupdate" the position within the top page, and "mousedown" and "mousemove" the one within the frame.
-    if (isLinux && isChromium) {
+    // macOS, in Chrome and in Firefox alike: the context menu opens on the press of the first right click, and the page
+    // gets neither its release nor anything of a second right click on the same spot, only the same "mousemove" once
+    // the menu is closed. That comes after macOS has faded the menu out, about a quarter of a second after the click
+    // which closed it, so it may come that much later. Firefox sends the "keyup" of a key which closes the menu before
+    // that "mousemove"; Chrome sends nothing of it, so there a key which closes the menu soon enough counts as well.
+    if ((isLinux && isChromium) || isMac) {
         const MAX_POINTER_SHIFT = 4; // In pixels
         const CONFIRMATION_DELAY = 150; // In milliseconds
+        const MENU_FADE_OUT_TIME = isMac ? 300 : 0; // In milliseconds
         let rightPress = null;
         let confirmationTimer = null;
         const receivePointerRawUpdate = function (e) {
@@ -291,7 +314,7 @@ if (window.DRCattachListeners) {
                 return;
             }
             const elapsed = eventTime(e) - rightPress.time;
-            if (elapsed < 50 || elapsed > maxTimeBetweenClicksValue) {
+            if (elapsed < 50 || elapsed > maxTimeBetweenClicksValue + MENU_FADE_OUT_TIME) {
                 forget();
                 return;
             }
