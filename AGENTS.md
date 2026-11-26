@@ -191,3 +191,8 @@ is.
   [tests/shared/test-pages.js](tests/shared/test-pages.js): a value set from a script is not the user's action. Where a
   test must control what is listed as closed, it sets the action with `setGestureAction` and uses
   `stubReopenClosedTab` in [tests/e2e/fixtures.js](tests/e2e/fixtures.js).
+- `npm run test:e2e` also runs on macOS (the `verify:*` scripts do not), so a test must not depend on the system it
+  runs on: one which expects another system than macOS (an "Alt" row, no Cmd row, the Cmd key not counting) passes
+  `stubNonMacPlatform` from [tests/e2e/fixtures.js](tests/e2e/fixtures.js) to the page or the service worker, as the
+  macOS tests stub `getPlatformInfo` the other way. Pick dropdown options with `chooseOption`: on macOS the arrow keys
+  open the native popup, which Playwright cannot operate, so a test about the arrow keys themselves skips macOS.
