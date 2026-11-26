@@ -83,6 +83,9 @@ test('"Done" shows the note when the options page stays open', async ({ context,
 test('the maximum time between clicks gets saved in one write before its note shows', async ({ context, serviceWorker, extensionId }) => {
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
+    // The page shows the saved setting once its read on load gets answered, which would check "Default" again after a
+    // change made before that. The reads of the page get answered in order, so the answer to one more read comes after.
+    await optionsPage.evaluate(() => new Promise((resolve) => chrome.storage.sync.get(null, resolve)));
     const note = optionsPage.locator('.alert-note-text');
 
     // Records the keys of each write, and holds each one until it gets released
