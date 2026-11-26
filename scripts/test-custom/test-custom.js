@@ -118,7 +118,7 @@ const groups = [
         ]
     },
     {
-        name: 'Real mouse and keyboard input (take them over; Linux with GNOME only)',
+        name: 'Real mouse and keyboard input (take them over; Linux with GNOME; verify:chrome also on macOS)',
         items: [
             {
                 id: 'verify:firefox',

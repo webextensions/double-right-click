@@ -1,13 +1,16 @@
 // Checks the double right click gesture in a real Chromium window with real mouse and keyboard input.
 //
 // The Playwright tests cannot cover this: their synthetic clicks never open the native context menu, and that menu is
-// what swallows parts of a double right click on Linux (differently under Wayland and under X11). This script instead:
+// what swallows parts of a double right click on Linux (differently under Wayland and under X11) and on macOS. This
+// script instead:
 //
 // - launches Playwright's Chromium with a visible window and the extension loaded, once per display mode
-// - sends OS-level clicks and key presses through scripts/real-input/real_input.py (GNOME's RemoteDesktop D-Bus API)
+// - sends OS-level clicks and key presses through scripts/real-input/real_input.py (GNOME's RemoteDesktop D-Bus API),
+//   or on macOS through scripts/real-input/real_input_mac.swift (Quartz events), which it compiles first
 // - reads the outcome (tab closed or still open) back through Playwright
 //
-// Requirements: Linux with GNOME, python3-gi, and "npx playwright install chromium".
+// Requirements: Linux with GNOME and python3-gi, or macOS with the Xcode Command Line Tools and the Accessibility
+// permission for the app which runs this (eg: Visual Studio Code or Terminal); and "npx playwright install chromium".
 // It takes over the mouse and keyboard for about four minutes: do not touch them while it runs.
 //
 // Usage: npm run verify:chrome (generates dist/chrome first), or
@@ -17,6 +20,9 @@
 // instead. That needs internet access and takes about 5 minutes per display mode.
 
 import { execFile } from 'node:child_process';
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync, renameSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { parseArgs, promisify } from 'node:util';
@@ -50,7 +56,8 @@ const { values: { sites: checkRealSites }, positionals } = parseArgs({
 
 const projectRoot = path.join(import.meta.dirname, '..', '..');
 const extensionPath = path.resolve(positionals[0] ?? path.join(projectRoot, 'dist', 'chrome'));
-const realInputScript = path.join(projectRoot, 'scripts', 'real-input', 'real_input.py');
+const isMac = process.platform === 'darwin';
+const realInputScript = path.join(projectRoot, 'scripts', 'real-input', isMac ? 'real_input_mac.swift' : 'real_input.py');
 
 // The content script only runs in http(s) pages, so serve the test pages from a fake https origin
 const TEST_ORIGIN = 'https://drc.test';
@@ -77,7 +84,10 @@ const CLOSED_URL_PREFIX = `${TEST_ORIGIN}/closed-`;
 const POINTER = { x: 600, y: 450 };
 
 // Chromium picks Wayland on a Wayland session, where X11 (through XWayland) still works and behaves differently
-const displayModes = process.env.XDG_SESSION_TYPE === 'wayland' ? ['wayland', 'x11'] : ['x11'];
+const linuxDisplayModes = process.env.XDG_SESSION_TYPE === 'wayland' ? ['wayland', 'x11'] : ['x11'];
+const displayModes = isMac ? ['macos'] : linuxDisplayModes;
+// The options page calls the Alt key Option on macOS
+const altKeyName = isMac ? 'Option' : 'Alt';
 
 const DOUBLE_RIGHT_CLICK = ['right', 'sleep', 0.15, 'right', 'sleep', 1.2];
 // A double right click with a key held (released a while after the second click)
@@ -95,8 +105,14 @@ const checks = [
     ['double right click (mouse not moved) closes the tab', true, ['right', 'sleep', 0.15, 'right', 'sleep', 1.2]],
     ['double right click 420 ms apart closes the tab', true, ['right', 'sleep', 0.42, 'right', 'sleep', 1.2]],
     ['double right click with the pointer shifted by 3 px closes the tab', true, ['right', 'sleep', 0.1, 'rel', -3, -3, 'right', 'sleep', 1.2]],
+    // On macOS, a second click which misses the context menu reaches the page as another press
+    ...(isMac ? [
+        ['double right click with the second click 10 px higher closes the tab', true, ['right', 'sleep', 0.15, 'rel', 0, -10, 'right', 'sleep', 1.2]],
+        ['double right click with the second click 10 px further left closes the tab', true, ['right', 'sleep', 0.15, 'rel', -10, 0, 'right', 'sleep', 1.2]]
+    ] : []),
     ['right clicks 800 ms apart keep the tab open (default 500 ms)', false, ['right', 'sleep', 0.8, 'right', 'sleep', 1.2]],
-    ['right click followed by a quick Escape keeps the tab open', false, ['right', 'sleep', 0.15, 'esc', 'sleep', 1.2]],
+    // Chrome on macOS sends the page nothing of an Escape which closes the context menu, so a quick one counts there
+    ...(isMac ? [] : [['right click followed by a quick Escape keeps the tab open', false, ['right', 'sleep', 0.15, 'esc', 'sleep', 1.2]]]),
     ['right click followed by a left click 120 px away keeps the tab open', false, ['right', 'sleep', 0.15, 'rel', -120, -120, 'left', 'sleep', 1.2]],
     ...[
         ['a page busy in "mousedown"', BUSY_MOUSEDOWN_URL],
@@ -105,8 +121,11 @@ const checks = [
         [`single right click on ${page} keeps the tab open`, false, ['right', 'sleep', 1.2], url],
         [`single right click held for 120 ms on ${page} keeps the tab open`, false, ['right-hold', 0.12, 'sleep', 1.2], url],
         // On Wayland, the second click has to come while the page is still busy: its "mouseup" tells the content script
-        // that no context menu is open, and the menu which opens later swallows a second click
-        [`double right click on ${page} closes the tab`, true, ['right', 'sleep', 0.08, 'right', 'sleep', 1.2], url]
+        // that no context menu is open, and the menu which opens later swallows a second click. On macOS, the menu of the
+        // first click opens once the page is done, and Chrome closes the tab only once that menu is closed.
+        isMac ?
+            [`double right click on ${page} closes the tab once the menu which opens late is closed`, true, ['right', 'sleep', 0.08, 'right', 'sleep', 1.2, 'esc', 'sleep', 0.6], url] :
+            [`double right click on ${page} closes the tab`, true, ['right', 'sleep', 0.08, 'right', 'sleep', 1.2], url]
     ]),
     [
         'single right click on a page which starts a long task right after the press keeps the tab open',
@@ -185,9 +204,33 @@ const checks = [
 const results = [];
 let skipped = 0;
 
-const realInput = async function (...commands) {
-    await execFileAsync('python3', [realInputScript, ...commands.map(String)]);
+// On macOS, the Swift program gets compiled once for each version of its source, among the temporary files
+const compileRealInputForMac = async function () {
+    const hash = createHash('sha256').update(readFileSync(realInputScript)).digest('hex').slice(0, 12);
+    const program = path.join(os.tmpdir(), `double-right-click-real-input-${hash}`);
+    if (!existsSync(program)) {
+        // Renamed once complete, so that an interrupted build leaves no broken program behind
+        await execFileAsync('swiftc', ['-O', '-o', `${program}.partial`, realInputScript]);
+        renameSync(`${program}.partial`, program);
+    }
+    return program;
 };
+
+const realInputCommand = isMac ? [await compileRealInputForMac()] : ['python3', realInputScript];
+
+const realInput = async function (...commands) {
+    await execFileAsync(realInputCommand[0], [...realInputCommand.slice(1), ...commands.map(String)]);
+};
+
+if (isMac) {
+    // Without any command, it only checks the Accessibility permission (macOS drops the events of an app without it)
+    try {
+        await realInput();
+    } catch (err) {
+        console.log(err.stderr || err.message);
+        process.exit(1);
+    }
+}
 
 const openTestPage = async function (context, serviceWorker, url) {
     const page = await context.newPage();
@@ -304,7 +347,7 @@ const runGestureChecks = async function (context, serviceWorker, displayMode) {
     ({ stayedOpen } = await gestureOnNewPage(context, serviceWorker, doubleRightClickWith('ctrl')));
     check('Ctrl + double right click set to do nothing keeps the tab open', stayedOpen);
 
-    await chooseGestureAction(context, serviceWorker, 'Alt + Double right click', 'Duplicate tab');
+    await chooseGestureAction(context, serviceWorker, `${altKeyName} + Double right click`, 'Duplicate tab');
     ({ stayedOpen, urls } = await gestureOnNewPage(context, serviceWorker, doubleRightClickWith('alt')));
     check('Alt + double right click set to duplicate the tab duplicates it and keeps it open',
         stayedOpen && urls.length === 1 && urls[0] === TEST_URL, JSON.stringify(urls));
@@ -384,7 +427,7 @@ const runChecks = async function (displayMode) {
         args: [
             `--disable-extensions-except=${extensionPath}`,
             `--load-extension=${extensionPath}`,
-            `--ozone-platform=${displayMode}`,
+            ...(isMac ? [] : [`--ozone-platform=${displayMode}`]),
             '--start-fullscreen'
         ]
     });
