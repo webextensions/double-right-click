@@ -9,7 +9,8 @@ the same version, built from the same commit. The uploads are made by hand in ea
 - You need access to the item in the
   [Chrome Web Store Developer Dashboard](https://chrome.google.com/webstore/devconsole) and to the add-on in the
   [AMO Developer Hub](https://addons.mozilla.org/developers/addons).
-- The real-input checks (step 2) run on Linux with GNOME only, and the screen must stay unlocked while they run.
+- The real-input checks (step 2) need Linux with GNOME (`verify:chrome` also runs on macOS, `verify:firefox` does
+  not), and the screen must stay unlocked while they run.
 
 ## Steps
 

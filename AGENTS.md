@@ -52,11 +52,12 @@ is.
   alone, since another system's user agent can claim macOS.
 - The browser opens its native context menu only once the page is done with `contextmenu`, so a page which is busy on
   a right press (eg: a heavy site) gets the `mouseup` of a short right click before the menu could swallow it. On Linux
-  and macOS the content script ignores a `mouseup` which comes before the menu could open: earlier than 50 ms after the page was
-  done with `contextmenu` (its listener on the window in the bubble phase, or a timer for a page which stops the
-  event). Keep measuring the time between clicks from the events' `timeStamp`, which a busy page cannot delay, and add
-  the start of the document which the listener is on (`eventTime`): a frame (eg: a placeholder) counts from its own
-  start in Chrome and in Firefox, and Chromium gives `pointerrawupdate` inside a frame the top window as its `view`.
+  and macOS the content script ignores a `mouseup` which comes before the menu could open: earlier than 50 ms after
+  the page was done with `contextmenu` (its listener on the window in the bubble phase, or a timer for a page which
+  stops the event). Keep measuring the time between clicks from the events' `timeStamp`, which a busy page cannot
+  delay, and add the start of the document which the listener is on (`eventTime`): a frame (eg: a placeholder) counts
+  from its own start in Chrome and in Firefox, and Chromium gives `pointerrawupdate` inside a frame the top window as
+  its `view`.
 - The content script must attach its handlers with `addEventListener`, never through the `document.on*` properties:
   Firefox shares those with the page, so each side would overwrite the other's handler.
 - A page which cancels `contextmenu` gets no native menu, so both events of one right click reach it. On Linux and
