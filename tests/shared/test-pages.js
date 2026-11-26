@@ -127,6 +127,40 @@ const readContentScriptMaxTime = async function (serviceWorker, url) {
     }, url);
 };
 
+// How long the browser adds the letters typed on a dropdown up to one search (about a second), with some margin
+const TYPE_AHEAD_TIME = 1100;
+
+// On macOS the arrow keys open the native popup of a dropdown, which Playwright cannot operate. A letter typed on the
+// closed dropdown picks the next option which starts with it, so this selects the option before the wanted one from a
+// script (which fires no "change") and then presses the letter: the dropdown changes once, on the user's action.
+const chooseOptionByLetter = async function (select, label, { from, to }) {
+    if (to === from) {
+        // As elsewhere, where Enter on the option which is already selected changes nothing
+        return;
+    }
+    const sinceLastLetter = await select.evaluate((el, to) => {
+        el.selectedIndex = (to - 1 + el.options.length) % el.options.length;
+        // Read before the page's own listeners, which can set the dropdown back (eg: the popup, for an option which
+        // needs a permission)
+        el.chosenOption = null;
+        el.addEventListener('change', () => {
+            el.chosenOption = el.options[el.selectedIndex].label;
+        }, { capture: true, once: true });
+        return performance.now() - (el.lastLetterTime ?? -Infinity);
+    }, to);
+    // Otherwise the letter would add to the one typed before
+    await select.page().waitForTimeout(Math.max(0, TYPE_AHEAD_TIME - sinceLastLetter));
+    await select.focus();
+    await select.page().keyboard.press(label[0].toLowerCase());
+    const chosenOption = await select.evaluate((el) => {
+        el.lastLetterTime = performance.now();
+        return el.chosenOption;
+    });
+    if (chosenOption !== label) {
+        throw new Error(`The dropdown did not pick "${label}" (it picked ${JSON.stringify(chosenOption)})`);
+    }
+};
+
 // Picks an option of a dropdown the way a user does, with key presses (the browser asks for a permission only on the
 // user's action, unlike when a script sets the value): opens the dropdown, moves to the option and takes it, so that
 // the dropdown changes only once
@@ -137,6 +171,10 @@ const chooseOption = async function (select, label) {
     }), label);
     if (to === -1) {
         throw new Error(`The dropdown has no option "${label}"`);
+    }
+    if (process.platform === 'darwin') {
+        await chooseOptionByLetter(select, label, { from, to });
+        return;
     }
     const keyboard = select.page().keyboard;
     await select.focus();

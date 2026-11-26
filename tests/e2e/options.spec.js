@@ -315,6 +315,7 @@ test('the choice applies to the next gesture, without loading the page again', a
 });
 
 test('arrow keys move through the actions without asking for a permission on the way', async ({ context, serviceWorker, extensionId }) => {
+    test.skip(process.platform === 'darwin', 'On macOS the arrow keys open the popup of a dropdown');
     const optionsPage = await context.newPage();
     await optionsPage.goto(`chrome-extension://${extensionId}/options.html`);
     await optionsPage.evaluate(() => {
