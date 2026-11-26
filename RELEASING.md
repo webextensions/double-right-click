@@ -106,8 +106,10 @@ the same version, built from the same commit. The uploads are made by hand in ea
         ```
 
     - Click **Submit Version**.
-    - If AMO did not ask for the source (for 3.1.0, it went from the upload straight to **Describe Version**), attach
-      it now: click **Edit version** on the page which confirms the submission, choose the `-source.zip` under
+    - If AMO asks "Do you need to submit source code?" only now (for 3.2.0, it did so after **Submit Version**), answer
+      **Yes**, choose the `-source.zip` and click **Continue**. That completes the submission and keeps the notes.
+    - If AMO did not ask for the source at all (for 3.1.0, **Submit Version** led straight to the page which confirms
+      the submission), attach it now: click **Edit version** on that page, choose the `-source.zip` under
       **Source code** on **Manage Version** and click **Save Changes**. Do not open the source code page of the flow
       by its URL instead: its **Continue** submits the version at once, without the notes. **Manage Version** also
       edits **Version Notes** and **Notes for Reviewers** after the submission.

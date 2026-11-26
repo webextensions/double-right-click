@@ -1,8 +1,8 @@
 # Chrome Web Store: Store Listing
 
 The texts to paste on the **Store listing** tab of the item in the
-[Developer Dashboard](https://chrome.google.com/webstore/devconsole). Update them when the features change, and paste
-them again at the next upload.
+[Developer Dashboard](https://chrome.google.com/webstore/devconsole). The dashboard keeps them from one upload to the
+next: update them here when the features change, and paste them there then.
 
 ## Product Details
 
