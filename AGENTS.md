@@ -42,17 +42,26 @@ is.
   `pointerrawupdate` (https pages only) while a right press waits for its second click. Keep all three workarounds.
   Compare the pointer positions of those events in screen coordinates: inside a same-site frame, Chromium gives
   `pointerrawupdate` the position within the top page, and the mouse events the position within the frame.
+- On macOS (Chrome and Firefox), the native context menu opens on the press and swallows its release, and a second
+  right click on the menu reaches the page only as that buttonless `mousemove`, once macOS has faded the menu out (about
+  250 ms after the click). So the content script counts `mousedown` and watches for the menu closing there too, allowing
+  `MENU_FADE_OUT_TIME` more. A second click a few pixels above, below or left of the first misses the menu and reaches
+  the page as a press: the content script cancels that press's `contextmenu`, since Chrome closes a tab only once its
+  menu is closed. A second click a pixel towards where the menu opened (to the right, or to the left near the right
+  edge of the screen) lands on its first entry, which no script can stop. `isMac` comes from `navigator.platform`
+  alone, since another system's user agent can claim macOS.
 - The browser opens its native context menu only once the page is done with `contextmenu`, so a page which is busy on
   a right press (eg: a heavy site) gets the `mouseup` of a short right click before the menu could swallow it. On Linux
-  the content script ignores a `mouseup` which comes before the menu could open: earlier than 50 ms after the page was
+  and macOS the content script ignores a `mouseup` which comes before the menu could open: earlier than 50 ms after the page was
   done with `contextmenu` (its listener on the window in the bubble phase, or a timer for a page which stops the
   event). Keep measuring the time between clicks from the events' `timeStamp`, which a busy page cannot delay, and add
   the start of the document which the listener is on (`eventTime`): a frame (eg: a placeholder) counts from its own
   start in Chrome and in Firefox, and Chromium gives `pointerrawupdate` inside a frame the top window as its `view`.
 - The content script must attach its handlers with `addEventListener`, never through the `document.on*` properties:
   Firefox shares those with the page, so each side would overwrite the other's handler.
-- A page which cancels `contextmenu` gets no native menu, so both events of one right click reach it. On Linux the
-  `mouseup` of a press already counted on `mousedown` must stay ignored there, or a single right click closes the tab.
+- A page which cancels `contextmenu` gets no native menu, so both events of one right click reach it. On Linux and
+  macOS the `mouseup` of a press already counted on `mousedown` must stay ignored there, or a single right click closes
+  the tab.
 - The options page sets what a double right click does, and with Shift, Ctrl, Alt or (on macOS only) Cmd held. The
   content script only reports the gesture and its keys; the background script reads the settings on each gesture and
   decides. Two keys held together do nothing, and a key with nothing set does what the plain gesture does. The content
@@ -116,7 +125,8 @@ is.
 - `npm start` rebuilds `dist/chrome` and `dist/firefox` on every change and never exits on its own.
 - `npm run start:chrome` / `npm run start:firefox` open a browser and block until it is closed.
 - `npm run verify:firefox` and `npm run verify:chrome` (about four minutes each) take over the
-  real mouse and keyboard (Linux with GNOME only): warn the user right before each run.
+  real mouse and keyboard (Linux with GNOME; `verify:chrome` also on macOS, where the app which runs it needs the
+  Accessibility permission): warn the user right before each run.
 - `npm run verify:firefox:sites` (about 5 minutes) and `npm run verify:chrome:sites` (about 10 minutes) take them over
   as well, and need internet access.
 - `npm run test:sites` opens Chromium windows, four at a time, for about 4 minutes and needs internet access.
@@ -130,9 +140,11 @@ is.
 
 - Changes under [extension/](extension/) should pass `npm test`, `npm run test:e2e`, `npm run verify:firefox`, and
   `npm run verify:chrome`.
-- Playwright's synthetic clicks never open the native context menu, which is what breaks the gesture on Linux. Only the
-  two `verify:*` scripts, which send real input through
-  [scripts/real-input/real_input.py](scripts/real-input/real_input.py), prove that a double right click closes the tab.
+- Playwright's synthetic clicks never open the native context menu, which is what breaks the gesture on Linux and
+  macOS. Only the two `verify:*` scripts, which send real input through
+  [scripts/real-input/real_input.py](scripts/real-input/real_input.py) (on macOS
+  [scripts/real-input/real_input_mac.swift](scripts/real-input/real_input_mac.swift)), prove that a double right click
+  closes the tab.
 - Playwright's `click()` releases the button at once, which hides bugs that need a realistic press. Use
   `holdRightClick` in [tests/e2e/fixtures.js](tests/e2e/fixtures.js), and only on the page which cancels the context
   menu: on any other page Playwright fires `contextmenu` without opening a native menu, so a held click counts twice.
@@ -191,7 +203,7 @@ is.
   [tests/shared/test-pages.js](tests/shared/test-pages.js): a value set from a script is not the user's action. Where a
   test must control what is listed as closed, it sets the action with `setGestureAction` and uses
   `stubReopenClosedTab` in [tests/e2e/fixtures.js](tests/e2e/fixtures.js).
-- `npm run test:e2e` also runs on macOS (the `verify:*` scripts do not), so a test must not depend on the system it
+- `npm run test:e2e` also runs on macOS (as does `verify:chrome`), so a test must not depend on the system it
   runs on: one which expects another system than macOS (an "Alt" row, no Cmd row, the Cmd key not counting) passes
   `stubNonMacPlatform` from [tests/e2e/fixtures.js](tests/e2e/fixtures.js) to the page or the service worker, as the
   macOS tests stub `getPlatformInfo` the other way. Pick dropdown options with `chooseOption`: on macOS the arrow keys

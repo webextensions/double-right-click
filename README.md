@@ -34,6 +34,12 @@ Extension **Double Right Click - close tab & more** for Google Chrome and Mozill
 
 * In Chrome on Linux (Wayland), double right click does not close the tab on a page which is not served over "https" and has not shown anything yet (eg: it waits for a slow stylesheet). The browser tells the extension about the second click too late there.
 
+* On macOS, the context menu opens with its corner at the pointer, so a second right click a pixel or more towards where the menu opened (to the right, or to the left near the right edge of the screen) lands on the first entry of the menu (eg: "Back"), which then does what that entry does. A second click a little off in another direction still counts.
+
+* In Chrome on macOS, closing the context menu with Escape or with a left click on the same spot shortly after a right click can also close the tab (in Firefox, only the left click). The browser does not tell the extension what closed the menu.
+
+* In Chrome on macOS, on a page which keeps the browser busy on a right click (eg: a heavy site), a quick double right click closes the tab only once the context menu, which opens late there, gets closed.
+
 * In Firefox on Linux, with "dom.event.contextmenu.enabled" turned off in "about:config", double right click does not close the tab on pages which show their own context menu. The browser does not tell the extension that it opened its own context menu there anyway.
 
 **Development:**
@@ -48,8 +54,8 @@ Extension **Double Right Click - close tab & more** for Google Chrome and Mozill
 * End-to-end tests in Chromium: `npx playwright install chromium` (once), then `npm run test:e2e` (builds `dist/chrome/` first)
 * Tests against real sites in Chromium (need internet access; about 4 minutes): `npm run test:sites` opens four sites at a time in visible windows, `npm run test:sites:headless` shows no windows (more sites answer with a bot check then). One site: `npm run test:sites -- --grep wikipedia`; fewer at a time: `npm run test:sites -- --workers=2`. The report in `playwright-report/` tells which page each site served. The sites are listed in `tests/shared/real-sites.json`
 * Check the extension in Firefox with real mouse and keyboard input: `npm run verify:firefox` (Linux with GNOME only; needs `geckodriver`, `python3-gi` and `gir1.2-atspi-2.0`; takes over the mouse and keyboard for about four minutes; one check needs internet access and is skipped without it)
-* Check the double right click in Chromium with real mouse and keyboard input: `npm run verify:chrome` (Linux with GNOME only; needs `python3-gi`; opens Chromium in Wayland and X11 modes and takes over the mouse and keyboard for about four minutes)
-* Check the double right click on the same real sites with real mouse and keyboard input: `npm run verify:chrome:sites` (about 10 minutes) and `npm run verify:firefox:sites` (about 5 minutes); same requirements as the two checks above, plus internet access
+* Check the double right click in Chromium with real mouse and keyboard input: `npm run verify:chrome` (Linux with GNOME, needs `python3-gi`, opens Chromium in Wayland and X11 modes; or macOS, needs the Xcode Command Line Tools and the Accessibility permission for the app which runs it; takes over the mouse and keyboard for about four minutes)
+* Check the double right click on the same real sites with real mouse and keyboard input: `npm run verify:chrome:sites` (about 10 minutes) and `npm run verify:firefox:sites` (about 5 minutes); same requirements as the two checks above, plus internet access (`verify:chrome:sites` has not been tried on macOS yet)
 * Pick which of the checks above to run, with a rough time for each: `npm run test:custom` (builds what the picks need once, keeps going when one fails and prints which passed; remembers the picks in `.test-custom.json`, and `npm run test:custom -- --last` runs them again without asking)
 * Build the store upload zips, one per browser (into `web-ext-artifacts/`): `npm run build`
 * Publish a new version on the Chrome Web Store and Firefox Add-ons: see [RELEASING.md](RELEASING.md)
