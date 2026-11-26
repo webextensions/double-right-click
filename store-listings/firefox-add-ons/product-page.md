@@ -44,6 +44,10 @@ Notes:
 
 * Firefox does not let extensions work on its own pages (eg: "about:blank"), on some Mozilla sites (eg: addons.mozilla.org) and on its error pages (eg: "Hmm. We're having trouble finding that site."). There, you would find a context-menu entry which does what a double right click is set to do ("Close tab" by default; none when set to do nothing), shown when you right click anywhere on the page.
 
+* On macOS, the context menu opens with its corner at the pointer, so a second right click a pixel or more towards where the menu opened (to the right, or to the left near the right edge of the screen) lands on the first entry of the menu (eg: "Back"), which then does what that entry does. A second click a little off in another direction still counts.
+
+* On macOS, closing the context menu with a left click on the same spot shortly after a right click can also close the tab. The browser does not tell the extension what closed the menu.
+
 * On Linux, with "dom.event.contextmenu.enabled" turned off in "about:config", double right click does not close the tab on pages which show their own context menu. The browser does not tell the extension that it opened its own context menu there anyway.
 
 Connect to us:
