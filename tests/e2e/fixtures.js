@@ -96,6 +96,9 @@ const test = base.extend({
         if (!serviceWorker) {
             serviceWorker = await context.waitForEvent('serviceworker');
         }
+        // The worker can show up here before it gets the tab events: for a page opened at once, its listeners never ran
+        // (and the context menu entry never showed up). The call itself is the wait; it settles that.
+        await serviceWorker.evaluate(() => chrome.tabs.onUpdated.hasListeners());
         await use(serviceWorker);
     },
     extensionId: async ({ serviceWorker }, use) => {
